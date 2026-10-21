@@ -1,0 +1,53 @@
+# 수집기 설정. 메시지 형식이 바뀌거나 새 센서·새 토픽이 생기면 이 파일만 고치고
+#   docker compose restart collector
+# 로 반영한다. (코드 수정 불필요)
+
+mqtt:
+  qos: 1
+  # 고정 client_id + clean_session=false → 잠깐 끊겨도 브로커가 그동안의 메시지를 보관했다가 넘겨준다
+  client_id: team2-collector
+  keepalive: 30
+
+influx:
+  batch_size: 500        # 이만큼 모이거나
+  flush_seconds: 2       # 이 시간이 지나면 쓴다
+  max_pending: 200000    # InfluxDB 장애 시 메모리에 보관할 최대 포인트 수
+
+# 경로 문법: 점(.)으로 중첩 키, 숫자는 배열 인덱스. 예) rxInfo.0.rssi
+sources:
+  - name: chirpstack-uplink
+    topic: application/+/device/+/event/up
+    time: time                       # 측정 시각(게이트웨이 수신 시각, UTC). 없으면 수집기 수신 시각 사용
+    dedup_key: deduplicationId       # 같은 메시지 재전송 제거
+    tags:
+      location: deviceInfo.tags.location
+      point: deviceInfo.tags.point     # 공간 안 설치 위치 (history 버킷과 같은 이름표)
+      spot: deviceInfo.tags.spot
+      device: deviceInfo.deviceName
+      dev_eui: deviceInfo.devEui       # history 버킷의 dev_eui와 이어 붙이는 키
+      model: deviceInfo.deviceProfileName
+    outputs:
+      # 센서 측정값: object 안의 숫자 값을 전부 저장 → 새 기종이 와도 자동 대응
+      - measurement: env
+        fields_from: object
+        rename: {}                   # 예) { LAeq: noise_db }
+        exclude: []                  # 예) [ infrared ]
+      # 통신 품질: 결측 원인 분석용
+      - measurement: uplink
+        fields:
+          fcnt: fCnt
+          rssi: rxInfo.0.rssi
+          snr: rxInfo.0.snr
+          dr: dr
+
+  # 형식 변경 대응 예시 — 다른 시스템이 평평한 JSON을 보내는 경우:
+  #   토픽 sensors/<공간>/air, 메시지 {"ts": "...", "room": "회의실", "co2": 700, "temp": 23.1}
+  # - name: flat-json
+  #   topic: sensors/+/air
+  #   time: ts
+  #   tags: { location: room }
+  #   outputs:
+  #     - measurement: env
+  #       fields_from: ""            # 빈 문자열 = 메시지 최상위
+  #       rename: { temp: temperature }
+  #       exclude: [ ts, room ]

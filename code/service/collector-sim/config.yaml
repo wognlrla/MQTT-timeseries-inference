@@ -1,0 +1,23 @@
+# 합성 재생 데이터용 수집기 설정 (과제 1 수집기 코드 그대로, 이 파일만 다름)
+# 과제 1 "형식 변경 대응" 사례: ChirpStack 형식이 아닌 평평한 JSON을 설정만으로 받는다.
+mqtt:
+  qos: 1
+  client_id: team2-collector-sim
+  keepalive: 30
+
+influx:
+  batch_size: 500
+  flush_seconds: 2
+  max_pending: 200000
+
+sources:
+  - name: sim-flat
+    topic: sim/sensors/+               # 메시지: {"ts": "...+09:00", "room": "classroom_a", "co2": 812, "temp": 25.1, "humidity": 55}
+    time: ts
+    tags:
+      location: room
+    outputs:
+      - measurement: env
+        fields_from: ""                # 메시지 최상위의 숫자 값을 필드로
+        rename: { temp: temperature }
+        exclude: [ ts, room ]

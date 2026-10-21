@@ -1,0 +1,18 @@
+[Unit]
+Description=team2-1 교육장 추론 서비스 v1 (과제 8)
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+User=team2-1
+Group=team
+WorkingDirectory=/srv/team/service
+ExecStart=/srv/team/venv/bin/python /srv/team/service/service.py
+Restart=always
+RestartSec=10
+Environment=PYTHONUNBUFFERED=1
+# 보드 메모리 보호: 서비스가 1.5GB를 넘으면 강제 재시작 (다른 작업을 멈추게 하지 않도록)
+MemoryMax=1500M
+
+[Install]
+WantedBy=multi-user.target

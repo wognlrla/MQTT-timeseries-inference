@@ -1,0 +1,6 @@
+# 첫 user 줄 앞의 규칙은 익명 접속에 적용된다: 결과 토픽 읽기만 허용
+topic read team2/#
+
+# 서비스 계정: 결과 발행, 합성 센서 발행·구독
+user svc
+topic readwrite #

@@ -1,0 +1,54 @@
+# 과제 8: 서비스 주변 스택 — MQTT 브로커(결과 발행용), 합성 데이터 재생기, 합성용 수집기
+# 추론 서비스 본체(service.py)는 TensorRT를 쓰므로 Docker가 아니라 systemd로 호스트에서 실행한다.
+# 실행: docker compose up -d --build   (/srv/team/service)
+name: svc
+services:
+  mosquitto:
+    image: eclipse-mosquitto:2
+    container_name: svc-mosquitto
+    restart: unless-stopped
+    ports:
+      - "1885:1883"     # 팀원 브로커(1884)와 겹치지 않게
+    volumes:
+      - ./mosquitto/config:/mosquitto/config:ro
+      - ./mosquitto/data:/mosquitto/data
+    logging: &logging
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  # 합성 시험 주간(10-05 월 ~ 10-11 일)을 '지금 요일·시각'에 맞춰 실시간처럼 발행한다
+  simfeed:
+    build: ./simfeed
+    container_name: svc-simfeed
+    restart: unless-stopped
+    depends_on: [mosquitto]
+    env_file: .env
+    environment:
+      MQTT_HOST: mosquitto
+      MQTT_PORT: "1883"
+    volumes:
+      - /srv/team/data/synthetic:/data:ro
+    logging: *logging
+
+  # 과제 1 수집기와 같은 이미지·코드. 설정 파일(config.yaml)과 저장 버킷만 다르다
+  collector-sim:
+    image: ingest-collector
+    container_name: svc-collector-sim
+    restart: unless-stopped
+    depends_on: [mosquitto]
+    env_file: .env
+    environment:
+      MQTT_HOST: mosquitto
+      MQTT_PORT: "1883"
+      INFLUX_URL: http://influxdb:8086
+      INFLUX_BUCKET: sim_live
+      CONFIG: /app/config.yaml
+    volumes:
+      - ./collector-sim/config.yaml:/app/config.yaml:ro
+    networks: [default, ingest]
+    logging: *logging
+
+networks:
+  ingest:
+    external: true
+    name: ingest_default

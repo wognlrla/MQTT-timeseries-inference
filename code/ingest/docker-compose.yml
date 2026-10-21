@@ -1,0 +1,44 @@
+# 과제 1: 상시 수집 스택 (InfluxDB 2.x + MQTT 수집기)
+# 실행: docker compose up -d --build
+# 두 컨테이너 모두 restart 정책으로 보드 재부팅·장애 후 자동 재시작된다.
+services:
+  influxdb:
+    image: influxdb:2.7
+    container_name: influxdb
+    restart: unless-stopped
+    ports:
+      # 보드 안에서만 연다. Mac에서는 SSH 터널로 접속한다(README 참고).
+      - "127.0.0.1:8086:8086"
+    environment:
+      DOCKER_INFLUXDB_INIT_MODE: setup
+      DOCKER_INFLUXDB_INIT_USERNAME: admin
+      DOCKER_INFLUXDB_INIT_PASSWORD: ${INFLUX_ADMIN_PASSWORD}
+      DOCKER_INFLUXDB_INIT_ORG: ${INFLUX_ORG}
+      DOCKER_INFLUXDB_INIT_BUCKET: ${INFLUX_BUCKET}
+      DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: ${INFLUX_TOKEN}
+    volumes:
+      - ./influxdb/data:/var/lib/influxdb2
+      - ./influxdb/config:/etc/influxdb2
+    healthcheck:
+      test: ["CMD", "influx", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    logging: &logging
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  collector:
+    build: ./collector
+    container_name: collector
+    restart: unless-stopped
+    depends_on:
+      influxdb:
+        condition: service_healthy
+    env_file: .env
+    environment:
+      INFLUX_URL: http://influxdb:8086
+      CONFIG: /app/config.yaml
+    volumes:
+      - ./collector/config.yaml:/app/config.yaml:ro
+    logging: *logging

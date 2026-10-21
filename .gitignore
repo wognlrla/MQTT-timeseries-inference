@@ -1,0 +1,18 @@
+# 비밀값·데이터·모델은 올리지 않는다
+.env
+*.env
+passwd
+__pycache__/
+*.pyc
+data/
+out/
+models/
+engines/
+*.pt
+*.engine
+*.onnx
+*.parquet
+*.csv.gz
+*.log
+alert_state.json
+.venv/
