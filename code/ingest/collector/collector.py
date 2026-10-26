@@ -153,6 +153,15 @@ def writer_loop(write_api):
                 stats["written"] += len(batch)
             backoff = 1
         except Exception as e:
+            # 422 = InfluxDB가 영영 저장할 수 없는 점(보관 기간 밖 시각 등)이 섞인 경우.
+            # 나머지 점은 이미 저장됐으므로(partial write) 이 배치는 버리고 다음으로 넘어간다.
+            # (부팅 직후 시계가 1970년이던 동안 쌓인 점 때문에 큐 전체가 막히는 것을 막는다)
+            if getattr(e, "status", None) == 422:
+                with lock:
+                    stats["write_error"] += 1
+                    stats["dropped"] = stats.get("dropped", 0) + len(batch)
+                log.warning("저장 불가 점이 섞인 배치 %d건을 버림(422): %s", len(batch), str(e)[:200])
+                continue
             with lock:
                 stats["write_error"] += 1
                 pending.extendleft(reversed(batch))  # 순서 유지하며 되돌려 놓기

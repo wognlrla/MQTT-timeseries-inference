@@ -57,6 +57,9 @@ client.loop_start()
 while not client.is_connected():
     time.sleep(0.5)
 
+# 부팅 직후 시계가 아직 맞춰지지 않았으면(1970년 등) 맞춰질 때까지 기다린다
+while pd.Timestamp.now().year < 2025:
+    time.sleep(5)
 now = pd.Timestamp.now().floor("s")
 back = rows_between(now - pd.Timedelta(hours=BACKFILL_H), now)
 publish(client, back)
@@ -65,6 +68,11 @@ last, sent, t_log = now, 0, time.time()
 while True:
     time.sleep(TICK_S)
     now = pd.Timestamp.now().floor("s")
+    # 시계가 크게 바뀌면(NTP 동기화 등) 그 사이를 몰아서 재생하지 않고 건너뛴다
+    if not (pd.Timedelta(0) <= now - last <= pd.Timedelta(minutes=10)):
+        print(f"{now} 시계 변화 감지({last} → {now}), 밀린 구간은 건너뜀", flush=True)
+        last = now
+        continue
     rows = rows_between(last, now)
     publish(client, rows)
     sent += len(rows)
